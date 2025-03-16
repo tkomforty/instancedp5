@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generative Flow</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    body {
+      overflow: hidden;
+      color: white;
+      position: relative;
+    }
+    
+    #canvas-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+    }
+    
+    .content {
+      position: relative;
+      z-index: 1;
+      padding: 5vh 5vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      text-align: center;
+      
+    }
+    
+    header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      padding: 1rem 0;
+      
+      transition: opacity 0.8s ease;
+    }
+    
+    .logo {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      background: linear-gradient(90deg, #fff, #6f42c1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    .hero {
+      max-width: 800px;
+      margin: 0 auto;
+      transition: opacity 0.8s ease, transform 0.8s ease;
+    }
+    
+    .hero.fade-out {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    
+    h1 {
+      font-size: 4rem;
+      margin-bottom: 1.5rem;
+      line-height: 1.2;
+       background: linear-gradient(90deg, #fff, #6f42c1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    p {
+      font-size: 1.2rem;
+      margin-bottom: 2rem;
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.8);
+      max-width: 700px;
+      margin-left: auto;
+      margin-right: auto;
+       background: linear-gradient(90deg, #fff, #6f42c1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    .kbd {
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      padding: 2px 5px;
+      font-family: monospace;
+      font-size: 0.9em;
+    }
+    
+    .cta-button {
+      display: inline-block;
+      padding: 1rem 2rem;
+      background: linear-gradient(45deg, #6f42c1, #2196f3);
+      border: none;
+      border-radius: 50px;
+      color: white;
+      font-size: 1.1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+    }
+    
+    .cta-button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 7px 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    footer {
+      width: 100%;
+      text-align: center;
+      padding: 1rem 0;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 0.9rem;
+      transition: opacity 0.8s ease;
+    }
+    
+    @media (max-width: 768px) {
+      .hero {
+        max-width: 100%;
+      }
+      
+      h1 {
+        font-size: 2.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  
+  <div class="content">
+    <header>
+      <div class="logo">Generative Flow</div>
+    </header>
+    
+    <div class="hero">
+      <h1>Instanced p5.js as HTML background</h1>
+      <p>Experience interactive visualization that responds to your movements. Move your cursor to influence star trajectories, click to create cosmic explosions, press <span class="kbd">C</span> to change color themes, <span class="kbd">B</span> to add black holes, <span class="kbd">S</span> to create star bursts.</p>
+      <a href="#" class="cta-button" id="get-started-btn">Play</a>
+    </div>
+    
+    <footer>
+      <p>&copy; 2025 tkomforty.</p>
+    </footer>
+  </div>
+  
+  <script>
+    let fadeAlpha = 100; // Start fully opaque
+    let stars = [];
+    let blackholes = [];
+    let lastRedraw = 0;
+    const redrawInterval = 100; // Interval to redraw (in milliseconds)
+    let isFadingOut = true; // Control if we are fading out or in
+    let mouseInfluence = {x: 0, y: 0}; // Track mouse influence
+    let mouseVelocityX = 0; // Track mouse velocity for more responsive interactions
+    let mouseVelocityY = 0;
+    let prevMouseX = 0;
+    let prevMouseY = 0;
+    let mousePressed = false; // Track if mouse is being pressed
+    let touchActive = false; // Track touch for mobile
+    let trailPoints = []; // Store points for mouse/touch trail effect
+    let currentTheme = 0; // Different color schemes that user can cycle through
+    let immersiveMode = false; // Track if the UI is hidden
+    
+    // Wait for DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      // Add click event to the Get Started button
+      const getStartedBtn = document.getElementById('get-started-btn');
+      const heroContent = document.querySelector('.hero');
+      const headerElement = document.querySelector('header');
+      const footerElement = document.querySelector('footer');
+      
+      getStartedBtn.addEventListener('click', function(event) {
+        event.preventDefault();
+        
+        // Toggle immersive mode
+        immersiveMode = !immersiveMode;
+        
+        if (immersiveMode) {
+          // Fade out hero content
+          heroContent.classList.add('fade-out');
+          
+          // Also fade out header and footer
+          headerElement.style.opacity = '0';
+          footerElement.style.opacity = '0';
+        } else {
+          // Fade back in
+          heroContent.classList.remove('fade-out');
+          headerElement.style.opacity = '1';
+          footerElement.style.opacity = '1';
+        }
+      });
+    });
+    
+    function setup() {
+      // Create canvas that fills the container
+      let canvas = createCanvas(windowWidth, windowHeight);
+      canvas.parent('canvas-container');
+      
+      pixelDensity(min(3.0, displayDensity()));
+      colorMode(HSB, 360, 100, 100);
+      
+      // Add all interactive events
+      canvas.mousePressed(() => {
+        mousePressed = true;
+        createExplosion();
+      });
+      
+      canvas.mouseReleased(() => {
+        mousePressed = false;
+      });
+      
+      // Add touch events for mobile
+      canvas.touchStarted(() => {
+        touchActive = true;
+        createExplosion();
+        return false; // Prevent default
+      });
+      
+      canvas.touchEnded(() => {
+        touchActive = false;
+        return false; // Prevent default
+      });
+      
+      canvas.touchMoved(() => {
+        return false; // Prevent default scrolling on mobile
+      });
+      
+      // Add keyboard interactions
+      document.addEventListener('keydown', (event) => {
+        // Space to reset animation
+        if (event.code === 'Space') {
+          initSketch();
+        }
+        
+        // C key to change color theme
+        if (event.code === 'KeyC') {
+          currentTheme = (currentTheme + 1) % 3;
+        }
+        
+        // B key to add a black hole at current mouse position
+        if (event.code === 'KeyB') {
+          let mouseXScaled = (mouseX - width/2) / 0.5;
+          let mouseYScaled = (mouseY - height/2) / 0.5;
+          
+          blackholes.push({
+            x: mouseXScaled,
+            y: mouseYScaled,
+            strength: random(5, 15),
+            radius: random(10, 30),
+            pulseFactor: random(0.9, 1.1),
+            pulseSpeed: random(0.02, 0.08)
+          });
+        }
+        
+        // S key to create a star burst without explosion
+        if (event.code === 'KeyS') {
+          let mouseXScaled = (mouseX - width/2) / 0.5;
+          let mouseYScaled = (mouseY - height/2) / 0.5;
+          
+          for (let i = 0; i < 30; i++) {
+            let angle = random(TWO_PI);
+            stars.push({
+              x: mouseXScaled,
+              y: mouseYScaled,
+              colour: random(180, 340),
+              size: random(0.5, 2.0),
+              speed: random(5, 15),
+              vx: cos(angle) * random(3, 8),
+              vy: sin(angle) * random(3, 8),
+              life: 50,
+              maxLife: 50
+            });
+          }
+        }
+      });
+      
+      initSketch(); // Initialize sketch elements
+    }
+    
+    // Create an explosion effect on mouse click
+    function createExplosion() {
+      // Create spectacular burst of stars from mouse position
+      let burstCount = 100; // Increased number of stars in burst
+      let mouseXScaled = (mouseX - width/2) / 0.5;
+      let mouseYScaled = (mouseY - height/2) / 0.5;
+      
+      // Create explosion effect with stars radiating outward
+      for (let i = 0; i < burstCount; i++) {
+        let angle = random(TWO_PI);
+        let distance = random(20, 200);
+        let newStar = {
+          x: mouseXScaled,
+          y: mouseYScaled,
+          colour: random(180, 340), // Wider color range for more variety
+          size: random(0.5, 4.0),
+          speed: random(10, 30),
+          // Add directional velocity for more organic movement
+          vx: cos(angle) * random(5, 15),
+          vy: sin(angle) * random(5, 15),
+          // Add lifespan for temporary stars
+          life: 100,
+          maxLife: 100
+        };
+        
+        stars.push(newStar);
+        
+        // Remove old stars to prevent performance issues
+        if (stars.length > 900) {
+          stars.shift();
+        }
+      }
+      
+      // Create a new black hole near click point for dramatic effect
+      blackholes.push({
+        x: mouseXScaled,
+        y: mouseYScaled,
+        strength: 15,
+        radius: random(10, 30),
+        pulseFactor: 1,
+        pulseSpeed: random(0.02, 0.08)
+      });
+      
+      // Limit black hole count
+      if (blackholes.length > 25) {
+        blackholes.shift();
+      }
+    }
+    
+    function initSketch() {
+      // Reset stars and blackholes for the new design
+      stars = [];
+      blackholes = [];
+      trailPoints = [];
+      
+      // Create stars with more properties for interaction
+      for (let i = 500; i--;) {
+        stars.push({
+          x: random(width) - width / 2,
+          y: random(height) - height / 2,
+          colour: i % 200,
+          size: random(0.1, 3.0),
+          speed: random(2, 8),
+          vx: random(-1, 1), // Add velocity components for more organic movement
+          vy: random(-1, 1),
+          originalSize: random(0.1, 3.0), // Remember original properties for resetting
+          originalSpeed: random(2, 8),
+          life: null // Regular stars don't expire
+        });
+      }
+      
+      // Create blackholes with more varied properties
+      for (let i = 17; i--;) {
+        blackholes.push({
+          x: random(-width / 2, width / 2),
+          y: random(-height / 2, height / 2),
+          strength: random(3, 10),
+          radius: random(5, 20), // Visual radius for rendering
+          pulseFactor: random(0.9, 1.1), // For pulsating effect
+          pulseSpeed: random(0.01, 0.05)
+        });
+      }
+    }
+    
+    function draw() {
+      // Calculate mouse velocity for more responsive interactions
+      mouseVelocityX = mouseX - prevMouseX;
+      mouseVelocityY = mouseY - prevMouseY;
+      prevMouseX = mouseX;
+      prevMouseY = mouseY;
+      
+      // Velocity magnitude affects animation intensity
+      let velocityMagnitude = sqrt(mouseVelocityX*mouseVelocityX + mouseVelocityY*mouseVelocityY);
+      
+      // Dynamic background based on mouse speed and color mode
+      let bgAlpha = map(velocityMagnitude, 0, 50, 0.03, 0.2);
+      bgAlpha = constrain(bgAlpha, 0.03, 0.2);
+      
+      // Different color themes that user can cycle through
+      if (currentTheme === 0) {
+        // Default cosmic blue scheme
+        background(220, 50, 10, bgAlpha);
+      } else if (currentTheme === 1) {
+        // Fiery red scheme
+        background(0, 50, 10, bgAlpha);
+      } else if (currentTheme === 2) {
+        // Emerald green scheme
+        background(120, 50, 10, bgAlpha);
+      }
+      
+      // Add trail points when mouse is moving fast enough
+      if (velocityMagnitude > 5) {
+        // Store coordinates properly transformed to match the world coordinates
+        // We multiply by 2 to counteract the 0.5 scale that will be applied later
+        trailPoints.push({
+          x: (mouseX - width/2) * 2,
+          y: (mouseY - height/2) * 2,
+          life: 30
+        });
+        
+        // Limit trail points
+        if (trailPoints.length > 20) {
+          trailPoints.shift();
+        }
+      }
+      
+      // Super responsive mouse influence calculation
+      let influenceFactor = map(velocityMagnitude, 0, 50, 50, 120);
+      mouseInfluence.x = (mouseX - width/2) / width * influenceFactor;
+      mouseInfluence.y = (mouseY - height/2) / height * influenceFactor;
+      
+      // Apply extra influence when mouse is pressed/touched
+      if (mousePressed || touchActive) {
+        mouseInfluence.x *= 1.5;
+        mouseInfluence.y *= 1.5;
+      }
+      
+      if (millis() - lastRedraw > redrawInterval) {
+        if (isFadingOut) {
+          fadeAlpha -= random(0, 2); // Fade out speed
+          if (fadeAlpha <= 0) {
+            initSketch(); // Initialize the next design once fully faded out
+            isFadingOut = false; // Start fading in
+          }
+        } else {
+          fadeAlpha += 0.85; // Fade in speed
+          if (fadeAlpha >= random(27, 97)) {
+            lastRedraw = millis(); // Reset timer for the next transition
+            isFadingOut = true; // Ready to fade out again
+          }
+        }
+      }
+      
+      // Apply the main transformation
+      translate(width / 2, height / 2);
+      scale(0.5, 0.5);
+      
+      // Draw trail effect for mouse/touch movement
+      for (let i = trailPoints.length - 1; i >= 0; i--) {
+        let tp = trailPoints[i];
+        tp.life--;
+        
+        if (tp.life <= 0) {
+          trailPoints.splice(i, 1);
+          continue;
+        }
+        
+        // Draw trail points with fading effect - fixed coordinates
+        let trailAlpha = map(tp.life, 0, 30, 0, 100);
+        let trailSize = map(tp.life, 0, 30, 1, 20);
+        
+        // Use correct coordinate space - no additional translations
+        noStroke();
+        
+        // Trail effect color based on color theme
+        if (currentTheme === 0) {
+          fill(210, 100, 100, trailAlpha/100);
+        } else if (currentTheme === 1) {
+          fill(0, 100, 100, trailAlpha/100);
+        } else {
+          fill(120, 100, 100, trailAlpha/100);
+        }
+        
+        // Draw ellipse directly with the coordinates we already stored
+        ellipse(tp.x, tp.y, trailSize, trailSize);
+      }
+      
+      // Draw and update blackholes with visual effects
+      for (const b of blackholes) {
+        // Pulsating effect
+        b.pulseFactor *= (1 + sin(frameCount * b.pulseSpeed) * 0.05);
+        b.pulseFactor = constrain(b.pulseFactor, 0.9, 1.3);
+        
+        // Visual representation of blackholes
+        push();
+        noStroke();
+        // Color based on theme
+        if (currentTheme === 0) {
+          fill(240, 70, 30, 0.3);
+        } else if (currentTheme === 1) {
+          fill(350, 70, 30, 0.3);
+        } else {
+          fill(140, 70, 30, 0.3);
+        }
+        
+        ellipse(b.x, b.y, b.radius * b.pulseFactor * 4);
+        pop();
+      }
+      
+      // Draw and update stars with enhanced effects
+      for (let i = stars.length - 1; i >= 0; i--) {
+        const s = stars[i];
+        
+        // Handle temporary stars created by explosions
+        if (s.life !== null) {
+          s.life--;
+          if (s.life <= 0) {
+            stars.splice(i, 1);
+            continue;
+          }
+          
+          // Make temporary stars fade out
+          let tempAlpha = map(s.life, 0, s.maxLife, 0, 100);
+          s.size = map(s.life, 0, s.maxLife, 0.1, s.size);
+          
+          // Update position using velocity components for more natural movement
+          s.x += s.vx;
+          s.y += s.vy;
+          
+          // Slow down over time
+          s.vx *= 0.98;
+          s.vy *= 0.98;
+          
+          stroke(s.colour % 300, random(50, 95), tempAlpha);
+          strokeWeight(s.size);
+          line(s.x, s.y, s.x + s.vx * 2, s.y + s.vy * 2);
+          
+          continue;
+        }
+        
+        // Regular stars behavior with enhanced physics
+        let direction = 7;
+        
+        // Super responsive mouse influence
+        direction += atan2(mouseInfluence.y, mouseInfluence.x) * 3.5;
+        
+        // Direct mouse interaction based on distance
+        let mouseDistX = (mouseX - width/2)/0.5 - s.x;
+        let mouseDistY = (mouseY - height/2)/0.5 - s.y;
+        let mouseDist = sqrt(mouseDistX * mouseDistX + mouseDistY * mouseDistY);
+        
+        // Create dynamic swirling effect around cursor based on velocity
+        if (mouseDist < 400) { // Increased interaction radius
+          let velocityMagnitude = sqrt(mouseVelocityX*mouseVelocityX + mouseVelocityY*mouseVelocityY);
+          let swirlIntensity = map(velocityMagnitude, 0, 50, 0, PI*2);
+          let swirl = map(mouseDist, 0, 400, swirlIntensity, 0);
+          
+          // Direction of swirl based on mouse movement
+          if (mouseVelocityX * mouseVelocityY > 0) {
+            direction += swirl;
+          } else {
+            direction -= swirl;
+          }
+          
+          // Stars move faster near cursor, speed based on mouse velocity
+          let speedBoost = map(velocityMagnitude, 0, 50, 1, 3);
+          s.speed = map(mouseDist, 0, 400, 20 * speedBoost, s.originalSpeed);
+          
+          // Star size can vary based on proximity
+          s.size = map(mouseDist, 0, 400, s.originalSize * 2, s.originalSize);
+        } else {
+          // Gradually return to original properties when far from mouse
+          s.speed = lerp(s.speed, s.originalSpeed, 0.1);
+          s.size = lerp(s.size, s.originalSize, 0.1);
+        }
+        
+        // Black hole influence with improved physics
+        for (const b of blackholes) {
+          let dx = b.x - s.x;
+          let dy = b.y - s.y;
+          let distance = sqrt(dx * dx + dy * dy);
+          
+          if (distance > 10) {
+            // Improved force calculation with inverse square law
+            let force = (b.strength * b.pulseFactor) / (distance * 0.8);
+            direction += atan2(dy, dx) * force;
+            
+            // Star acceleration based on black hole proximity
+            if (distance < 100) {
+              s.speed *= 1.01; // Stars accelerate near black holes
+            }
+          }
+        }
+        
+        // Color variation based on theme and star properties
+        let hue = (s.colour % 300);
+        if (currentTheme === 1) {
+          hue = (s.colour % 60); // Red-orange range
+        } else if (currentTheme === 2) {
+          hue = ((s.colour % 60) + 120); // Green range
+        }
+        
+        // Star color varies with speed
+        let saturation = map(s.speed, s.originalSpeed, s.originalSpeed * 3, 50, 95);
+        saturation = constrain(saturation, 50, 95);
+        
+        stroke(hue, saturation, fadeAlpha);
+        strokeWeight(s.size);
+        
+        // Update position with improved physics
+        let moveX = cos(direction) * s.speed;
+        let moveY = sin(direction) * s.speed * random(0.8, 1.2); // Add slight variation
+        
+        // Draw star with tail length proportional to speed
+        let tailLength = map(s.speed, s.originalSpeed, s.originalSpeed * 3, 1, 3);
+        line(s.x, s.y, s.x + moveX * tailLength, s.y + moveY * tailLength);
+        
+        // Update star position
+        s.x += moveX;
+        s.y += moveY;
+        
+        // Wrap stars around edges with slight offset for more variety
+        if (s.x < -width) s.x = width + random(50);
+        if (s.x > width) s.x = -width - random(50);
+        if (s.y < -height) s.y = height + random(50);
+        if (s.y > height) s.y = -height - random(50);
+      }
+    }
+    
+    // Make canvas responsive
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      
+      // Clear trail points when resizing to prevent position issues
+      trailPoints = [];
+      
+      initSketch(); // Re-initialize on resize for better responsiveness
+    }
+    
+    // Enhanced mouse interaction
+    function mouseMoved() {
+      // Update multiple black holes based on mouse movement
+      // Correctly scale mouse coordinates to match our world space
+      let mouseXScaled = (mouseX - width/2);
+      let mouseYScaled = (mouseY - height/2);
+      
+      // Create a ripple effect where black holes follow the mouse with varying delays
+      for (let i = 0; i < blackholes.length; i++) {
+        let followSpeed = map(i, 0, blackholes.length, 0.15, 0.01); // Different speeds for each black hole
+        let distanceFactor = map(i, 0, blackholes.length, 1, 0.3); // Different distances from cursor
+        
+        // Primary black hole follows directly   
+        if (i === 0) {
+          blackholes[i].x = lerp(blackholes[i].x, mouseXScaled, 0.15);
+          blackholes[i].y = lerp(blackholes[i].y, mouseYScaled, 0.15);
+          blackholes[i].strength = 10; // Stronger pull for primary black hole
+        } 
+        // Secondary black holes follow with offset
+        else {
+          let angle = i * (TWO_PI / (blackholes.length - 1));
+          let targetX = mouseXScaled + cos(angle) * 100 * distanceFactor;
+          let targetY = mouseYScaled + sin(angle) * 100 * distanceFactor;
+          
+          blackholes[i].x = lerp(blackholes[i].x, targetX, followSpeed);
+          blackholes[i].y = lerp(blackholes[i].y, targetY, followSpeed);
+        }
+      }
+      
+      // Occasionally boost star speed on mouse movement for dramatic effect
+      if (random() < 0.05) {
+        for (let i = 0; i < 20; i++) {
+          let randomStar = stars[floor(random(stars.length))];
+          randomStar.speed *= 1.5;
+          randomStar.speed = constrain(randomStar.speed, 2, 20);
+        }
+      }
+    }
+  </script>
+</body>
+</html>
