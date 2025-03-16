@@ -149,8 +149,8 @@
     
     <div class="hero">
       <h1>Instanced p5.js as HTML background</h1>
-      <p>Experience interactive visualization that responds to your movements. Move your cursor to influence star trajectories, click to create cosmic explosions, press <span class="kbd">C</span> to change color themes, <span class="kbd">B</span> to add black holes, <span class="kbd">S</span> to create star bursts.</p>
-      <a href="#" class="cta-button" id="get-started-btn">Play</a>
+      <p>Experience interactive visualization that responds to your movements. Move your cursor to influence star trajectories, click to create cosmic explosions, press <span class="kbd">C</span> to change color themes, <span class="kbd">B</span> to add black holes, <span class="kbd">S</span> to create star bursts, and <span class="kbd">Space</span> to reset the animation.</p>
+      <a href="#" class="cta-button" id="get-started-btn">Enjoy</a>
     </div>
     
     <footer>
@@ -175,6 +175,8 @@
     let trailPoints = []; // Store points for mouse/touch trail effect
     let currentTheme = 0; // Different color schemes that user can cycle through
     let immersiveMode = false; // Track if the UI is hidden
+    let colorCycle = 0; // Color cycle counter for oscillation
+    let hueShift = 0; // Global hue shift value for oscillating colors
     
     // Wait for DOM to be fully loaded
     document.addEventListener('DOMContentLoaded', function() {
@@ -212,7 +214,7 @@
       canvas.parent('canvas-container');
       
       pixelDensity(min(3.0, displayDensity()));
-      colorMode(HSB, 360, 100, 100);
+      colorMode(HSB, 360, 100, 100); // Using HSB color mode for better color control
       
       // Add all interactive events
       canvas.mousePressed(() => {
@@ -383,23 +385,33 @@
       prevMouseX = mouseX;
       prevMouseY = mouseY;
       
+      // Update color oscillation - increased speed and amplitude
+      colorCycle += 0.01; // Doubled speed for more noticeable change
+      hueShift = sin(colorCycle) * 60; // Doubled amplitude for more dramatic shift
+      
       // Velocity magnitude affects animation intensity
       let velocityMagnitude = sqrt(mouseVelocityX*mouseVelocityX + mouseVelocityY*mouseVelocityY);
+      
+      // Reset blend mode for background
+      blendMode(REPLACE);
       
       // Dynamic background based on mouse speed and color mode
       let bgAlpha = map(velocityMagnitude, 0, 50, 0.03, 0.2);
       bgAlpha = constrain(bgAlpha, 0.03, 0.2);
       
-      // Different color themes that user can cycle through
+      // Different color themes that user can cycle through, now with oscillation
       if (currentTheme === 0) {
-        // Default cosmic blue scheme
-        background(220, 50, 10, bgAlpha);
+        // Default cosmic blue scheme with oscillation
+        let baseHue = 20 + hueShift; // Oscillate around 220 (blue)
+        background(baseHue, 50, 10, bgAlpha);
       } else if (currentTheme === 1) {
-        // Fiery red scheme
-        background(0, 50, 10, bgAlpha);
+        // Fiery red scheme with oscillation
+        let baseHue = 0 + hueShift; // Oscillate around 0 (red)
+        background(baseHue, 50, 10, bgAlpha);
       } else if (currentTheme === 2) {
-        // Emerald green scheme
-        background(120, 50, 10, bgAlpha);
+        // Emerald green scheme with oscillation
+        let baseHue = 120 + hueShift; // Oscillate around 120 (green)
+        background(baseHue, 50, 10, bgAlpha);
       }
       
       // Add trail points when mouse is moving fast enough
@@ -449,6 +461,9 @@
       translate(width / 2, height / 2);
       scale(0.5, 0.5);
       
+      // Set blend mode for more interesting visual effects
+      blendMode(SCREEN);
+      
       // Draw trail effect for mouse/touch movement
       for (let i = trailPoints.length - 1; i >= 0; i--) {
         let tp = trailPoints[i];
@@ -466,13 +481,16 @@
         // Use correct coordinate space - no additional translations
         noStroke();
         
-        // Trail effect color based on color theme
+        // Trail effect color based on color theme with oscillation
         if (currentTheme === 0) {
-          fill(210, 100, 100, trailAlpha/100);
+          let trailHue = 210 + hueShift * 1.5; // More dramatic oscillation
+          fill(trailHue, 100, 100, trailAlpha/100);
         } else if (currentTheme === 1) {
-          fill(0, 100, 100, trailAlpha/100);
+          let trailHue = (0 + hueShift * 1.5 + 360) % 360; // Ensure positive value
+          fill(trailHue, 100, 100, trailAlpha/100);
         } else {
-          fill(120, 100, 100, trailAlpha/100);
+          let trailHue = 120 + hueShift * 1.5; // More dramatic oscillation
+          fill(trailHue, 100, 100, trailAlpha/100);
         }
         
         // Draw ellipse directly with the coordinates we already stored
@@ -481,25 +499,47 @@
       
       // Draw and update blackholes with visual effects
       for (const b of blackholes) {
-        // Pulsating effect
-        b.pulseFactor *= (1 + sin(frameCount * b.pulseSpeed) * 0.05);
-        b.pulseFactor = constrain(b.pulseFactor, 0.9, 1.3);
+        // Pulsating effect with more dramatic pulsation
+        b.pulseFactor *= (1 + sin(frameCount * b.pulseSpeed) * 0.1); // Doubled pulsation amplitude
+        b.pulseFactor = constrain(b.pulseFactor, 0.8, 1.5); // Wider range for more dramatic effect
         
         // Visual representation of blackholes
         push();
         noStroke();
-        // Color based on theme
+        
+        // Color based on theme with oscillation
+        let bhHue;
         if (currentTheme === 0) {
-          fill(240, 70, 30, 0.3);
+          bhHue = 240 + hueShift * 1.2; // Increased oscillation impact
+          fill(bhHue, 90, 40, 0.4); // More saturated and brighter
         } else if (currentTheme === 1) {
-          fill(350, 70, 30, 0.3);
+          bhHue = (350 + hueShift * 1.2 + 360) % 360; // Ensure positive value
+          fill(bhHue, 90, 40, 0.4);
         } else {
-          fill(140, 70, 30, 0.3);
+          bhHue = 140 + hueShift * 1.2;
+          fill(bhHue, 90, 40, 0.4);
         }
         
+        // Add outer glow effect with opposite color
+        let outerHue = (currentTheme === 0) ? (60 + hueShift) % 360 : 
+                      (currentTheme === 1) ? (180 + hueShift) % 360 : 
+                      (300 + hueShift) % 360;
+        
+        // Draw outer glow
+        blendMode(ADD);
+        fill(outerHue, 70, 30, 0.15);
+        ellipse(b.x, b.y, b.radius * b.pulseFactor * 8);
+        
+        // Draw core
+        blendMode(SCREEN);
+        fill(bhHue, 90, 40, 0.4);
         ellipse(b.x, b.y, b.radius * b.pulseFactor * 4);
+        
         pop();
       }
+      
+      // Reset blend mode for stars
+      blendMode(ADD);
       
       // Draw and update stars with enhanced effects
       for (let i = stars.length - 1; i >= 0; i--) {
@@ -513,20 +553,26 @@
             continue;
           }
           
-          // Make temporary stars fade out
-          let tempAlpha = map(s.life, 0, s.maxLife, 0, 100);
-          s.size = map(s.life, 0, s.maxLife, 0.1, s.size);
-          
-          // Update position using velocity components for more natural movement
-          s.x += s.vx;
-          s.y += s.vy;
-          
-          // Slow down over time
-          s.vx *= 0.98;
-          s.vy *= 0.98;
-          
-          stroke(s.colour % 300, random(50, 95), tempAlpha);
-          strokeWeight(s.size);
+      // Make temporary stars fade out with oscillating colors
+      let tempAlpha = map(s.life, 0, s.maxLife, 0, 100);
+      s.size = map(s.life, 0, s.maxLife, 0.1, s.size);
+      
+      // Update position using velocity components for more natural movement
+      s.x += s.vx;
+      s.y += s.vy;
+      
+      // Slow down over time
+      s.vx *= 0.98;
+      s.vy *= 0.98;
+      
+      // Apply more dramatic color oscillation to temporary stars
+      let tempHue = (s.colour % 300) + sin(colorCycle * 2 + s.x * 0.02) * 60; // Doubled frequency and amplitude
+      tempHue = (tempHue + 360) % 360; // Ensure it's in the valid range
+      
+      // Use ADD blend mode for temporary stars too
+      blendMode(ADD);
+      stroke(tempHue, random(70, 100), tempAlpha); // Increased saturation
+      strokeWeight(s.size);
           line(s.x, s.y, s.x + s.vx * 2, s.y + s.vy * 2);
           
           continue;
@@ -586,19 +632,31 @@
           }
         }
         
-        // Color variation based on theme and star properties
-        let hue = (s.colour % 300);
-        if (currentTheme === 1) {
-          hue = (s.colour % 60); // Red-orange range
+        // Color variation based on theme, star properties, and oscillation
+        let baseHue;
+        if (currentTheme === 0) {
+          baseHue = ((s.colour % 300) + hueShift * 1.5) % 360; // More dramatic oscillation
+        } else if (currentTheme === 1) {
+          baseHue = ((s.colour % 60) + hueShift * 1.5 + 360) % 360; // More dramatic oscillation
         } else if (currentTheme === 2) {
-          hue = ((s.colour % 60) + 120); // Green range
+          baseHue = (((s.colour % 60) + 120) + hueShift * 1.5) % 360; // More dramatic oscillation
         }
         
-        // Star color varies with speed
-        let saturation = map(s.speed, s.originalSpeed, s.originalSpeed * 3, 50, 95);
-        saturation = constrain(saturation, 50, 95);
+        // Add more pronounced individual oscillation for each star
+        let individualHueShift = sin(frameCount * 0.02 + s.x * 0.01) * 20; // Doubled amplitude, increased speed
+        let hue = (baseHue + individualHueShift) % 360;
         
-        stroke(hue, saturation, fadeAlpha);
+        // Star color varies with speed and adds oscillation
+        let saturation = map(s.speed, s.originalSpeed, s.originalSpeed * 3, 70, 100); // Increased saturation
+        saturation = constrain(saturation, 70, 100);
+        
+        // Add dramatic brightness oscillation
+        let brightnessOsc = sin(frameCount * 0.05 + s.y * 0.01) * 20; // Doubled amplitude, increased frequency
+        let brightness = constrain(fadeAlpha + brightnessOsc, 30, 100);
+        
+        // Set a bright blend mode for stars
+        blendMode(ADD);
+        stroke(hue, saturation, brightness);
         strokeWeight(s.size);
         
         // Update position with improved physics
@@ -643,7 +701,7 @@
         let followSpeed = map(i, 0, blackholes.length, 0.15, 0.01); // Different speeds for each black hole
         let distanceFactor = map(i, 0, blackholes.length, 1, 0.3); // Different distances from cursor
         
-        // Primary black hole follows directly   
+        // Primary black hole follows directly
         if (i === 0) {
           blackholes[i].x = lerp(blackholes[i].x, mouseXScaled, 0.15);
           blackholes[i].y = lerp(blackholes[i].y, mouseYScaled, 0.15);
@@ -669,6 +727,106 @@
         }
       }
     }
+    
+    function drawParticleTrail() {
+  blendMode(ADD);
+  
+  for (let i = trailPoints.length - 1; i >= 0; i--) {
+    let tp = trailPoints[i];
+    tp.life--;
+    
+    if (tp.life <= 0) {
+      trailPoints.splice(i, 1);
+      continue;
+    }
+    
+    // Update rotation for spinning particles
+    tp.rotation += tp.rotationSpeed;
+    
+    // Draw trail points with fading effect - fixed coordinates
+    let trailAlpha = map(tp.life, 0, tp.maxLife, 0, 100);
+    let pulseSize = tp.size * (1 + sin(frameCount * 0.1 + i * 0.2) * 0.3);
+    
+    // Use correct coordinate space - no additional translations
+    push();
+    translate(tp.x, tp.y);
+    rotate(tp.rotation);
+    noStroke();
+    
+    // Trail effect color based on color theme with oscillation
+    let trailHue;
+    if (currentTheme === 0) {
+      trailHue = (210 + hueShift * 1.5 + tp.hueOffset) % 360;
+    } else if (currentTheme === 1) {
+      trailHue = (0 + hueShift * 1.5 + tp.hueOffset + 360) % 360;
+    } else {
+      trailHue = (120 + hueShift * 1.5 + tp.hueOffset) % 360;
+    }
+    
+    // Create organic, fluid shapes instead of stars
+    fill(trailHue, 100, 100, trailAlpha/100);
+    
+    // Draw main blob - organic shape
+    beginShape();
+    let numPoints = 8;
+    for (let j = 0; j < numPoints; j++) {
+      let angle = j * TWO_PI / numPoints;
+      // Use noise for organic, flowing edge variations
+      let r = pulseSize * 2 * (0.5 + 0.5 * noise(tp.x * 0.01, tp.y * 0.01, frameCount * 0.02 + j * 0.5));
+      let x = cos(angle) * r;
+      let y = sin(angle) * r;
+      curveVertex(x, y);
+      
+      // Add extra points between main points for smoother curves
+      if (j < numPoints - 1) {
+        let angleExtra = (j + 0.5) * TWO_PI / numPoints;
+        let extraNoise = noise(tp.x * 0.01, tp.y * 0.01, frameCount * 0.02 + j * 0.5 + 10);
+        let extraR = pulseSize * (0.7 + 1.3 * extraNoise);
+        let xExtra = cos(angleExtra) * extraR;
+        let yExtra = sin(angleExtra) * extraR;
+        curveVertex(xExtra, yExtra);
+      }
+    }
+    // Close the shape by repeating first points
+    let closeAngle = 0;
+    let closeR = pulseSize * 2 * (0.5 + 0.5 * noise(tp.x * 0.01, tp.y * 0.01, frameCount * 0.02));
+    curveVertex(cos(closeAngle) * closeR, sin(closeAngle) * closeR);
+    endShape(CLOSE);
+    
+    // Add inner glow
+    fill(trailHue, 70, 100, trailAlpha/100 * 0.7);
+    ellipse(0, 0, pulseSize * 1.5);
+    
+    // Add subtle tendrils/wisps extending from the main shape
+    let numTendrils = 3 + floor(random(3));
+    for (let t = 0; t < numTendrils; t++) {
+      let tendrilAngle = random(TWO_PI);
+      let tendrilLength = pulseSize * random(2, 4);
+      
+      // Draw tendril
+      noFill();
+      stroke(trailHue, 90, 100, trailAlpha/100 * 0.5);
+      strokeWeight(pulseSize * 0.2);
+      beginShape();
+      vertex(0, 0);
+      // Create curved tendril
+      let control1X = cos(tendrilAngle) * tendrilLength * 0.3;
+      let control1Y = sin(tendrilAngle) * tendrilLength * 0.3;
+      let control2X = cos(tendrilAngle) * tendrilLength * 0.7;
+      let control2Y = sin(tendrilAngle) * tendrilLength * 0.7;
+      let endX = cos(tendrilAngle) * tendrilLength;
+      let endY = sin(tendrilAngle) * tendrilLength;
+      bezierVertex(control1X, control1Y, control2X, control2Y, endX, endY);
+      endShape();
+    }
+    
+    pop();
+  }
+  
+  // Reset blend mode and stroke settings
+  blendMode(BLEND);
+  noStroke();
+}
   </script>
 </body>
 </html>
