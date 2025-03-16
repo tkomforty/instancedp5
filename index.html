@@ -149,8 +149,8 @@
     
     <div class="hero">
       <h1>Instanced p5.js as HTML background</h1>
-      <p>Experience interactive visualization that responds to your movements. Move your cursor to influence star trajectories, click to create cosmic explosions, press <span class="kbd">C</span> to change color themes, <span class="kbd">B</span> to add black holes, <span class="kbd">S</span> to create star bursts, and <span class="kbd">Space</span> to reset the animation.</p>
-      <a href="#" class="cta-button" id="get-started-btn">Enjoy</a>
+      <p>Experience interactive visualization that responds to your movements. Move your cursor to influence star trajectories, click to create cosmic explosions, press <span class="kbd">C</span> to change color themes, <span class="kbd">B</span> to add black holes, <span class="kbd">S</span> to create star bursts, <span class="kbd">T</span> to cycle through trail effects, and <span class="kbd">Space</span> to reset the animation.</p>
+      <a href="#" class="cta-button" id="get-started-btn">Play</a>
     </div>
     
     <footer>
@@ -173,6 +173,7 @@
     let mousePressed = false; // Track if mouse is being pressed
     let touchActive = false; // Track touch for mobile
     let trailPoints = []; // Store points for mouse/touch trail effect
+    let trailType = 0; // Different trail styles (0: particles, 1: ribbon, 2: stardust)
     let currentTheme = 0; // Different color schemes that user can cycle through
     let immersiveMode = false; // Track if the UI is hidden
     let colorCycle = 0; // Color cycle counter for oscillation
@@ -252,6 +253,13 @@
         // C key to change color theme
         if (event.code === 'KeyC') {
           currentTheme = (currentTheme + 1) % 3;
+        }
+        
+        // T key to change trail type
+        if (event.code === 'KeyT') {
+          trailType = (trailType + 1) % 3;
+          // Clear existing trail points when changing type
+          trailPoints = [];
         }
         
         // B key to add a black hole at current mouse position
@@ -393,16 +401,19 @@
       let velocityMagnitude = sqrt(mouseVelocityX*mouseVelocityX + mouseVelocityY*mouseVelocityY);
       
       // Reset blend mode for background
-      blendMode(REPLACE);
+      blendMode(BLEND);
       
-      // Dynamic background based on mouse speed and color mode
-      let bgAlpha = map(velocityMagnitude, 0, 50, 0.03, 0.2);
-      bgAlpha = constrain(bgAlpha, 0.03, 0.2);
+      // Always ensure the background has some opacity to avoid white flash
+      let bgAlpha = map(velocityMagnitude, 0, 50, 0.05, 0.2);
+      bgAlpha = constrain(bgAlpha, 0.05, 0.2); // Increased minimum alpha
+      
+      // Always start with a black background to avoid white flash
+      background(0, 0, 0, 1);
       
       // Different color themes that user can cycle through, now with oscillation
       if (currentTheme === 0) {
         // Default cosmic blue scheme with oscillation
-        let baseHue = 20 + hueShift; // Oscillate around 220 (blue)
+        let baseHue = 20 + hueShift; // Oscillate around 20 (blue-ish)
         background(baseHue, 50, 10, bgAlpha);
       } else if (currentTheme === 1) {
         // Fiery red scheme with oscillation
@@ -414,18 +425,25 @@
         background(baseHue, 50, 10, bgAlpha);
       }
       
-      // Add trail points when mouse is moving fast enough
-      if (velocityMagnitude > 5) {
+      // Add trail points when mouse is moving fast enough (with lower frequency)
+      if (velocityMagnitude > 3 && frameCount % 3 === 0) { // Only add a point every 3 frames
         // Store coordinates properly transformed to match the world coordinates
         // We multiply by 2 to counteract the 0.5 scale that will be applied later
         trailPoints.push({
           x: (mouseX - width/2) * 2,
           y: (mouseY - height/2) * 2,
-          life: 30
+          vx: mouseVelocityX * 0.5, // Store velocity for dynamic trails
+          vy: mouseVelocityY * 0.5,
+          size: random(1, 5) * map(velocityMagnitude, 3, 30, 0.5, 2), // Size based on velocity
+          rotationSpeed: random(-0.05, 0.05), // Slower rotation
+          rotation: random(TWO_PI),
+          life: 80, // Doubled lifetime for more persistent trails
+          maxLife: 80,
+          hueOffset: random(-30, 30) // Individual color variation
         });
         
         // Limit trail points
-        if (trailPoints.length > 20) {
+        if (trailPoints.length > 25) { // Reduced max trail points
           trailPoints.shift();
         }
       }
@@ -461,40 +479,19 @@
       translate(width / 2, height / 2);
       scale(0.5, 0.5);
       
-      // Set blend mode for more interesting visual effects
-      blendMode(SCREEN);
-      
       // Draw trail effect for mouse/touch movement
-      for (let i = trailPoints.length - 1; i >= 0; i--) {
-        let tp = trailPoints[i];
-        tp.life--;
-        
-        if (tp.life <= 0) {
-          trailPoints.splice(i, 1);
-          continue;
+      if (trailPoints.length > 1) {
+        switch (trailType) {
+          case 0: // Particle Trail
+            drawParticleTrail();
+            break;
+          case 1: // Ribbon Trail
+            drawRibbonTrail();
+            break;
+          case 2: // Stardust Trail
+            drawStardustTrail();
+            break;
         }
-        
-        // Draw trail points with fading effect - fixed coordinates
-        let trailAlpha = map(tp.life, 0, 30, 0, 100);
-        let trailSize = map(tp.life, 0, 30, 1, 20);
-        
-        // Use correct coordinate space - no additional translations
-        noStroke();
-        
-        // Trail effect color based on color theme with oscillation
-        if (currentTheme === 0) {
-          let trailHue = 210 + hueShift * 1.5; // More dramatic oscillation
-          fill(trailHue, 100, 100, trailAlpha/100);
-        } else if (currentTheme === 1) {
-          let trailHue = (0 + hueShift * 1.5 + 360) % 360; // Ensure positive value
-          fill(trailHue, 100, 100, trailAlpha/100);
-        } else {
-          let trailHue = 120 + hueShift * 1.5; // More dramatic oscillation
-          fill(trailHue, 100, 100, trailAlpha/100);
-        }
-        
-        // Draw ellipse directly with the coordinates we already stored
-        ellipse(tp.x, tp.y, trailSize, trailSize);
       }
       
       // Draw and update blackholes with visual effects
@@ -553,26 +550,26 @@
             continue;
           }
           
-      // Make temporary stars fade out with oscillating colors
-      let tempAlpha = map(s.life, 0, s.maxLife, 0, 100);
-      s.size = map(s.life, 0, s.maxLife, 0.1, s.size);
-      
-      // Update position using velocity components for more natural movement
-      s.x += s.vx;
-      s.y += s.vy;
-      
-      // Slow down over time
-      s.vx *= 0.98;
-      s.vy *= 0.98;
-      
-      // Apply more dramatic color oscillation to temporary stars
-      let tempHue = (s.colour % 300) + sin(colorCycle * 2 + s.x * 0.02) * 60; // Doubled frequency and amplitude
-      tempHue = (tempHue + 360) % 360; // Ensure it's in the valid range
-      
-      // Use ADD blend mode for temporary stars too
-      blendMode(ADD);
-      stroke(tempHue, random(70, 100), tempAlpha); // Increased saturation
-      strokeWeight(s.size);
+          // Make temporary stars fade out with oscillating colors
+          let tempAlpha = map(s.life, 0, s.maxLife, 0, 100);
+          s.size = map(s.life, 0, s.maxLife, 0.1, s.size);
+          
+          // Update position using velocity components for more natural movement
+          s.x += s.vx;
+          s.y += s.vy;
+          
+          // Slow down over time
+          s.vx *= 0.98;
+          s.vy *= 0.98;
+          
+          // Apply more dramatic color oscillation to temporary stars
+          let tempHue = (s.colour % 300) + sin(colorCycle * 2 + s.x * 0.02) * 60; // Doubled frequency and amplitude
+          tempHue = (tempHue + 360) % 360; // Ensure it's in the valid range
+          
+          // Use ADD blend mode for temporary stars too
+          blendMode(ADD);
+          stroke(tempHue, random(70, 100), tempAlpha); // Increased saturation
+          strokeWeight(s.size);
           line(s.x, s.y, s.x + s.vx * 2, s.y + s.vy * 2);
           
           continue;
@@ -679,154 +676,107 @@
       }
     }
     
-    // Make canvas responsive
-    function windowResized() {
-      resizeCanvas(windowWidth, windowHeight);
-      
-      // Clear trail points when resizing to prevent position issues
-      trailPoints = [];
-      
-      initSketch(); // Re-initialize on resize for better responsiveness
-    }
-    
-    // Enhanced mouse interaction
-    function mouseMoved() {
-      // Update multiple black holes based on mouse movement
-      // Correctly scale mouse coordinates to match our world space
-      let mouseXScaled = (mouseX - width/2);
-      let mouseYScaled = (mouseY - height/2);
-      
-      // Create a ripple effect where black holes follow the mouse with varying delays
-      for (let i = 0; i < blackholes.length; i++) {
-        let followSpeed = map(i, 0, blackholes.length, 0.15, 0.01); // Different speeds for each black hole
-        let distanceFactor = map(i, 0, blackholes.length, 1, 0.3); // Different distances from cursor
-        
-        // Primary black hole follows directly
-        if (i === 0) {
-          blackholes[i].x = lerp(blackholes[i].x, mouseXScaled, 0.15);
-          blackholes[i].y = lerp(blackholes[i].y, mouseYScaled, 0.15);
-          blackholes[i].strength = 10; // Stronger pull for primary black hole
-        } 
-        // Secondary black holes follow with offset
-        else {
-          let angle = i * (TWO_PI / (blackholes.length - 1));
-          let targetX = mouseXScaled + cos(angle) * 100 * distanceFactor;
-          let targetY = mouseYScaled + sin(angle) * 100 * distanceFactor;
-          
-          blackholes[i].x = lerp(blackholes[i].x, targetX, followSpeed);
-          blackholes[i].y = lerp(blackholes[i].y, targetY, followSpeed);
-        }
-      }
-      
-      // Occasionally boost star speed on mouse movement for dramatic effect
-      if (random() < 0.05) {
-        for (let i = 0; i < 20; i++) {
-          let randomStar = stars[floor(random(stars.length))];
-          randomStar.speed *= 1.5;
-          randomStar.speed = constrain(randomStar.speed, 2, 20);
-        }
-      }
-    }
-    
     function drawParticleTrail() {
-  blendMode(ADD);
-  
-  for (let i = trailPoints.length - 1; i >= 0; i--) {
-    let tp = trailPoints[i];
-    tp.life--;
-    
-    if (tp.life <= 0) {
-      trailPoints.splice(i, 1);
-      continue;
-    }
-    
-    // Update rotation for spinning particles
-    tp.rotation += tp.rotationSpeed;
-    
-    // Draw trail points with fading effect - fixed coordinates
-    let trailAlpha = map(tp.life, 0, tp.maxLife, 0, 100);
-    let pulseSize = tp.size * (1 + sin(frameCount * 0.1 + i * 0.2) * 0.3);
-    
-    // Use correct coordinate space - no additional translations
-    push();
-    translate(tp.x, tp.y);
-    rotate(tp.rotation);
-    noStroke();
-    
-    // Trail effect color based on color theme with oscillation
-    let trailHue;
-    if (currentTheme === 0) {
-      trailHue = (210 + hueShift * 1.5 + tp.hueOffset) % 360;
-    } else if (currentTheme === 1) {
-      trailHue = (0 + hueShift * 1.5 + tp.hueOffset + 360) % 360;
-    } else {
-      trailHue = (120 + hueShift * 1.5 + tp.hueOffset) % 360;
-    }
-    
-    // Create organic, fluid shapes instead of stars
-    fill(trailHue, 100, 100, trailAlpha/100);
-    
-    // Draw main blob - organic shape
-    beginShape();
-    let numPoints = 8;
-    for (let j = 0; j < numPoints; j++) {
-      let angle = j * TWO_PI / numPoints;
-      // Use noise for organic, flowing edge variations
-      let r = pulseSize * 2 * (0.5 + 0.5 * noise(tp.x * 0.01, tp.y * 0.01, frameCount * 0.02 + j * 0.5));
-      let x = cos(angle) * r;
-      let y = sin(angle) * r;
-      curveVertex(x, y);
+      blendMode(ADD);
       
-      // Add extra points between main points for smoother curves
-      if (j < numPoints - 1) {
-        let angleExtra = (j + 0.5) * TWO_PI / numPoints;
-        let extraNoise = noise(tp.x * 0.01, tp.y * 0.01, frameCount * 0.02 + j * 0.5 + 10);
-        let extraR = pulseSize * (0.7 + 1.3 * extraNoise);
-        let xExtra = cos(angleExtra) * extraR;
-        let yExtra = sin(angleExtra) * extraR;
-        curveVertex(xExtra, yExtra);
+      for (let i = trailPoints.length - 1; i >= 0; i--) {
+        let tp = trailPoints[i];
+        // Decay life more slowly
+        tp.life -= 0.5; // Half speed decay
+        
+        if (tp.life <= 0) {
+          trailPoints.splice(i, 1);
+          continue;
+        }
+        
+        // Update rotation for spinning particles - slower rotation
+        tp.rotation += tp.rotationSpeed * 0.7;
+        
+        // Draw trail points with fading effect - fixed coordinates
+        let trailAlpha = map(tp.life, 0, tp.maxLife, 0, 100);
+        // Slower pulse animation
+        let pulseSize = tp.size * (1 + sin(frameCount * 0.05 + i * 0.1) * 0.3);
+        
+        // Use correct coordinate space - no additional translations
+        push();
+        translate(tp.x, tp.y);
+        rotate(tp.rotation);
+        noStroke();
+        
+        // Trail effect color based on color theme with oscillation
+        let trailHue;
+        if (currentTheme === 0) {
+          trailHue = (210 + hueShift * 1.5 + tp.hueOffset) % 360;
+        } else if (currentTheme === 1) {
+          trailHue = (0 + hueShift * 1.5 + tp.hueOffset + 360) % 360;
+        } else {
+          trailHue = (120 + hueShift * 1.5 + tp.hueOffset) % 360;
+        }
+        
+        // Create organic, fluid shapes instead of stars
+        fill(trailHue, 100, 100, trailAlpha/100);
+        
+        // Draw main blob - organic shape
+        beginShape();
+        let numPoints = 8;
+        // Use slower noise movement for more stable shapes
+        let noiseOffset = frameCount * 0.01 + tp.x * 0.005 + tp.y * 0.005;
+        
+        for (let j = 0; j < numPoints; j++) {
+          let angle = j * TWO_PI / numPoints;
+          // Use noise for organic, flowing edge variations - slower movement
+          let r = pulseSize * 2 * (0.5 + 0.5 * noise(tp.x * 0.01, tp.y * 0.01, noiseOffset + j * 0.5));
+          let x = cos(angle) * r;
+          let y = sin(angle) * r;
+          curveVertex(x, y);
+          
+          // Add extra points between main points for smoother curves
+          if (j < numPoints - 1) {
+            let angleExtra = (j + 0.5) * TWO_PI / numPoints;
+            let extraNoise = noise(tp.x * 0.01, tp.y * 0.01, noiseOffset + j * 0.5 + 10);
+            let extraR = pulseSize * (0.7 + 1.3 * extraNoise);
+            let xExtra = cos(angleExtra) * extraR;
+            let yExtra = sin(angleExtra) * extraR;
+            curveVertex(xExtra, yExtra);
+          }
+        }
+        // Close the shape by repeating first points
+        let closeAngle = 0;
+        let closeR = pulseSize * 2 * (0.5 + 0.5 * noise(tp.x * 0.01, tp.y * 0.01, noiseOffset));
+        curveVertex(cos(closeAngle) * closeR, sin(closeAngle) * closeR);
+        endShape(CLOSE);
+        
+        // Add inner glow
+        fill(trailHue, 70, 100, trailAlpha/100 * 0.7);
+        ellipse(0, 0, pulseSize * 1.5);
+        
+        // Add subtle tendrils/wisps extending from the main shape - fewer tendrils
+        let numTendrils = 1 + floor(random(2)); // Reduced number of tendrils
+        for (let t = 0; t < numTendrils; t++) {
+          let tendrilAngle = random(TWO_PI);
+          let tendrilLength = pulseSize * random(2, 3); // Slightly shorter
+          
+          // Draw tendril
+          noFill();
+          stroke(trailHue, 90, 100, trailAlpha/100 * 0.5);
+          strokeWeight(pulseSize * 0.2);
+          beginShape();
+          vertex(0, 0);
+          // Create curved tendril
+          let control1X = cos(tendrilAngle) * tendrilLength * 0.3;
+          let control1Y = sin(tendrilAngle) * tendrilLength * 0.3;
+          let control2X = cos(tendrilAngle) * tendrilLength * 0.7;
+          let control2Y = sin(tendrilAngle) * tendrilLength * 0.7;
+          let endX = cos(tendrilAngle) * tendrilLength;
+          let endY = sin(tendrilAngle) * tendrilLength;
+          bezierVertex(control1X, control1Y, control2X, control2Y, endX, endY);
+          endShape();
+        }
+        
+        pop();
       }
-    }
-    // Close the shape by repeating first points
-    let closeAngle = 0;
-    let closeR = pulseSize * 2 * (0.5 + 0.5 * noise(tp.x * 0.01, tp.y * 0.01, frameCount * 0.02));
-    curveVertex(cos(closeAngle) * closeR, sin(closeAngle) * closeR);
-    endShape(CLOSE);
-    
-    // Add inner glow
-    fill(trailHue, 70, 100, trailAlpha/100 * 0.7);
-    ellipse(0, 0, pulseSize * 1.5);
-    
-    // Add subtle tendrils/wisps extending from the main shape
-    let numTendrils = 3 + floor(random(3));
-    for (let t = 0; t < numTendrils; t++) {
-      let tendrilAngle = random(TWO_PI);
-      let tendrilLength = pulseSize * random(2, 4);
       
-      // Draw tendril
-      noFill();
-      stroke(trailHue, 90, 100, trailAlpha/100 * 0.5);
-      strokeWeight(pulseSize * 0.2);
-      beginShape();
-      vertex(0, 0);
-      // Create curved tendril
-      let control1X = cos(tendrilAngle) * tendrilLength * 0.3;
-      let control1Y = sin(tendrilAngle) * tendrilLength * 0.3;
-      let control2X = cos(tendrilAngle) * tendrilLength * 0.7;
-      let control2Y = sin(tendrilAngle) * tendrilLength * 0.7;
-      let endX = cos(tendrilAngle) * tendrilLength;
-      let endY = sin(tendrilAngle) * tendrilLength;
-      bezierVertex(control1X, control1Y, control2X, control2Y, endX, endY);
-      endShape();
+      // Reset blend mode and stroke settings
+      blendMode(BLEND);
+      noStroke();
     }
-    
-    pop();
-  }
-  
-  // Reset blend mode and stroke settings
-  blendMode(BLEND);
-  noStroke();
-}
-  </script>
-</body>
-</html>
